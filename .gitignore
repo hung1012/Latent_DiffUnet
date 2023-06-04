@@ -1,0 +1,8 @@
+*.pyc
+__init__.py
+*.pt
+*.ckpt
+*.pth
+__pycache__
+output
+logs*
