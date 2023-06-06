@@ -295,7 +295,7 @@ class ImageLogger(Callback):
         self.batch_freq = batch_frequency
         self.max_images = max_images
         self.logger_log_images = {
-            pl.loggers.TestTubeLogger: self._testtube,
+            pl.loggers.TensorBoardLogger: self._testtube,
         }
         self.log_steps = [2 ** n for n in range(int(np.log2(self.batch_freq)) + 1)]
         if not increase_log_steps:
@@ -400,7 +400,7 @@ class CUDACallback(Callback):
         torch.cuda.synchronize(trainer.root_gpu)
         self.start_time = time.time()
 
-    def on_train_epoch_end(self, trainer, pl_module, outputs):
+    def on_train_epoch_end(self, trainer, pl_module):
         torch.cuda.synchronize(trainer.root_gpu)
         max_memory = torch.cuda.max_memory_allocated(trainer.root_gpu) / 2 ** 20
         epoch_time = time.time() - self.start_time
@@ -548,15 +548,15 @@ if __name__ == "__main__":
                     "id": nowname,
                 }
             },
-            "testtube": {
-                "target": "pytorch_lightning.loggers.TestTubeLogger",
+            "tensorboard": {
+                "target": "pytorch_lightning.loggers.TensorBoardLogger",
                 "params": {
-                    "name": "testtube",
+                    "name": "tensorboard",
                     "save_dir": logdir,
                 }
             },
         }
-        default_logger_cfg = default_logger_cfgs["testtube"]
+        default_logger_cfg = default_logger_cfgs["tensorboard"]
         if "logger" in lightning_config:
             logger_cfg = lightning_config.logger
         else:
