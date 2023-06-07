@@ -127,11 +127,11 @@ class ISICTester(Trainer):
 if __name__ == "__main__":
 
     data_dir = "/home/admin_mcn/thaotlp/data/ISIC/image"
-    logdir = "/home/admin_mcn/hungvq/DiffUnet/logs/model/best_model_1.5610.pt"
-    output_dir = '/home/admin_mcn/hungvq/DiffUnet/output'
+    logdir = "/home/admin_mcn/hungvq/DiffUnet/logs_new_vae/model/best_model_1.3230.pt"
+    output_dir = '/home/admin_mcn/hungvq/Latent_DiffUnet/output_new_vae'
 
     max_epoch = 300
-    batch_size = 2
+    batch_size = 4
     val_every = 10
     device = "cuda:1"
 

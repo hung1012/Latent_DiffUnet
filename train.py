@@ -79,7 +79,7 @@ class ISICTrainer(Trainer):
         self.ce = nn.CrossEntropyLoss() 
         self.mse = nn.MSELoss()
         self.scheduler = LinearWarmupCosineAnnealingLR(self.optimizer,
-                                                  warmup_epochs=400,
+                                                  warmup_epochs=100,
                                                   max_epochs=max_epochs)
 
         self.bce = nn.BCEWithLogitsLoss()
@@ -155,7 +155,7 @@ class ISICTrainer(Trainer):
 if __name__ == "__main__":
 
     data_dir = "/home/admin_mcn/thaotlp/data/ISIC/image"
-    logdir = "/home/admin_mcn/hungvq/DiffUnet/logs_new"
+    logdir = "/home/admin_mcn/hungvq/DiffUnet/logs_new_vae"
     model_save_path = os.path.join(logdir, "model")
 
     env = "pytorch" # or env = "pytorch" if you only have one gpu.

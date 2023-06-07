@@ -20,7 +20,7 @@ class ISICDataset(Dataset):
     def read_data(self, data_path):
         filename = data_path.split("/")[-1]
         fileidx = filename.split(".")[0]
-        latent_dir = '/home/admin_mcn/thaotlp/data/ISIC/latent_gt'
+        latent_dir = '/home/admin_mcn/hungvq/data/latent_gt'
         image_path = data_path
         latent_path = os.path.join(latent_dir, fileidx + '.npy')
 
