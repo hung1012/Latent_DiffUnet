@@ -1,0 +1,8 @@
+*.pyc
+*.pth
+*.zip
+*.ckpt
+*.png
+logs
+__pycache__
+__init__.py
