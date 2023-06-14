@@ -13,8 +13,8 @@ import yaml
 from guided_diffusion.gaussian_diffusion import get_named_beta_schedule, ModelMeanType, ModelVarType,LossType
 from guided_diffusion.respace import SpacedDiffusion, space_timesteps
 from guided_diffusion.resample import UniformSampler
-from unet.basic_unet_denose import BasicUNetDe
-from unet.basic_unet import BasicUNetEncoder
+from models.basic_unet_denose import BasicUNetDe
+from models.basic_unet import BasicUNetEncoder
 
 from torchvision.transforms import Compose, ToTensor, Resize, ToPILImage
 
