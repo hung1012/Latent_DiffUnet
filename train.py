@@ -19,6 +19,9 @@ from guided_diffusion.respace import SpacedDiffusion, space_timesteps
 from guided_diffusion.resample import UniformSampler
 set_determinism(123)
 import os
+from ldm.models.autoencoder import AutoencoderKL
+from omegaconf import OmegaConf
+from ldm.util import instantiate_from_config
 
 
 
@@ -74,6 +77,16 @@ class ISICTrainer(Trainer):
                                                 overlap=0.25)
         self.model = DiffUNet()
 
+        print('Start creating and loading vae model ...')
+        config_path = '/home/admin_mcn/hungvq/stable_diffusion/logs/2023-06-06T13-14-23_seg_diff_autoencoder/configs/2023-06-06T22-23-53-project.yaml'
+        ckpt_path = '/home/admin_mcn/hungvq/stable_diffusion/logs/2023-06-06T13-14-23_seg_diff_autoencoder/checkpoints/last.ckpt'
+        config = OmegaConf.load(config_path)
+        vae_model = instantiate_from_config(config.model)
+        vae_model.load_state_dict(torch.load(ckpt_path, map_location='cpu')['state_dict'])
+        self.vae = vae_model.eval().to(device)
+        for name, param in self.vae.named_parameters():
+            param.requires_grad = False
+
         self.best_mean_dice = 1e4
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=1e-2)
         self.ce = nn.CrossEntropyLoss() 
@@ -86,8 +99,8 @@ class ISICTrainer(Trainer):
         self.dice_loss = DiceLoss(sigmoid=True)
 
     def training_step(self, batch):
-        image, mask = self.get_input(batch)
-        x_start = mask
+        image, latent_mask, mask = self.get_input(batch)
+        x_start = latent_mask
 
         x_start = (x_start) * 2 - 1
         x_t, t, noise = self.model(x=x_start, pred_type="q_sample")
@@ -95,14 +108,18 @@ class ISICTrainer(Trainer):
 
         pred_xstart = self.model(x=x_t, step=t, image=image, pred_type="denoise")
 
-        # loss_dice = self.dice_loss(pred_xstart, mask)
-        # loss_bce = self.bce(pred_xstart, mask)
+        decode_pred = self.vae.decode(pred_xstart)
+        # decode_pred = (torch.clamp(decode_pred,min=0,max=1)>0.99).float()
 
-        # pred_xstart = torch.sigmoid(pred_xstart)
-        loss_mse = self.mse(pred_xstart, mask)
+        # print("\nDecode ", decode_pred.shape)
+        # print(mask.shape)
+        loss_dice = self.dice_loss(decode_pred, mask)
+        loss_bce = self.bce(decode_pred, mask)
 
-        # loss = loss_dice + loss_bce + loss_mse
-        loss = loss_mse
+        loss_mse = self.mse(decode_pred, mask)
+
+        loss = loss_dice + loss_bce + loss_mse
+        # loss = loss_mse
 
         self.log("train_loss", loss, step=self.global_step)
 
@@ -110,18 +127,19 @@ class ISICTrainer(Trainer):
  
     def get_input(self, batch):
         image = batch["image"]
-        mask = batch["latent"]
+        latent_mask = batch["latent"]
+        mask = batch['mask']
        
    
         mask = mask.float()
-        return image, mask
+        return image, latent_mask, mask
 
     def validation_step(self, batch):
-        image, mask = self.get_input(batch)    
+        image, latent_mask, mask = self.get_input(batch)    
         
 
         output = self.window_infer(image, self.model, pred_type="ddim_sample")
-
+        decode_pred = self.vae.decode(output)
         # output = torch.sigmoid(output)
 
         # output = (output > 0.5).float().cpu().numpy()
@@ -129,7 +147,12 @@ class ISICTrainer(Trainer):
 
         # output = (output > 0.5).float()
 
-        loss = self.mse(output, mask)
+        loss_dice = self.dice_loss(decode_pred, mask)
+        loss_bce = self.bce(decode_pred, mask)
+
+        loss_mse = self.mse(decode_pred, mask)
+
+        loss = loss_dice + loss_bce + loss_mse
         
         return loss
 
@@ -155,21 +178,22 @@ class ISICTrainer(Trainer):
 if __name__ == "__main__":
 
     data_dir = "/home/admin_mcn/thaotlp/data/ISIC/image"
+    mask_dir = "/home/admin_mcn/thaotlp/data/ISIC/mask"
     logdir = "/home/admin_mcn/hungvq/DiffUnet/logs_new_vae"
     model_save_path = os.path.join(logdir, "model")
 
     env = "pytorch" # or env = "pytorch" if you only have one gpu.
 
     max_epoch = 10000
-    batch_size = 64
+    batch_size = 1
     val_every = 10
     num_gpus = 1
-    device = "cuda:1"
+    device = "cuda:0"
 
     number_modality = 3
     number_targets = 32
 
-    train_ds, val_ds, test_ds = get_loader_isic(data_dir=data_dir, batch_size=batch_size, fold=0)
+    train_ds, val_ds, test_ds = get_loader_isic(data_dir=data_dir, mask_dir=mask_dir, batch_size=batch_size, fold=0)
 
     
     trainer = ISICTrainer(env_type=env,
