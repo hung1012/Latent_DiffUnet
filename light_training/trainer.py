@@ -205,7 +205,7 @@ class Trainer:
                     v_sum[i] = 0
                 else :
                     v_sum[i] = v_sum[i] / length[i]
-        return v_sum, val_outputs
+        return v_sum
 
     def train(self,
                 train_dataset,

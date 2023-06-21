@@ -7,3 +7,4 @@ out*
 __pycache__
 output
 logs*
+dataset/
