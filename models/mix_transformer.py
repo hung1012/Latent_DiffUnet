@@ -204,6 +204,11 @@ class MixVisionTransformer(nn.Module):
                  num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1]):
+        """
+        in_chans (int, optional, defaults to 3) — The number of input channels.
+        depths (List[int], optional, defaults to [3, 4, 6, 3]) — The number of layers in each encoder block
+
+        """
         super().__init__()
         self.num_classes = num_classes
         self.depths = depths

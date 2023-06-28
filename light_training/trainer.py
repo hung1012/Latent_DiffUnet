@@ -16,6 +16,7 @@ import numpy as np
 import torch
 import torch.nn.parallel
 import torch.utils.data.distributed
+from torch.nn.utils import clip_grad_norm_
 
 
 
@@ -274,6 +275,7 @@ class Trainer:
                 if self.ddp:
                     torch.distributed.barrier()
                 for idx, batch in tqdm(enumerate(val_loader), total=len(val_loader)):
+                    tmp = batch["name"][0]
                     if isinstance(batch, dict):
                         batch = {
                             x: batch[x].to(self.device)
@@ -288,6 +290,7 @@ class Trainer:
                     else :
                         print("not support data type")
                         exit(0)
+                    batch["name"] = tmp
 
                     with torch.no_grad():
                         val_out = self.validation_step(batch)
@@ -363,6 +366,7 @@ class Trainer:
                 
                 ############## ERROR ##############
                 for idx, batch in enumerate(loader):
+                    tmp = batch["name"][0]
                     self.global_step += 1
                     t.set_description('Epoch %i' % epoch)
                     if isinstance(batch, dict):
@@ -379,13 +383,15 @@ class Trainer:
                     else :
                         print("not support data type")
                         exit(0)
-                    
+                    batch["name"] = tmp
+
                     if self.model is not None:
                         for param in self.model.parameters(): param.grad = None
                     loss = self.training_step(batch)
 
                     if self.auto_optim:
                         loss.backward()
+                        clip_grad_norm_(self.model.parameters(), 1)
                         self.optimizer.step()
                         
                         lr = self.optimizer.state_dict()['param_groups'][0]['lr']
@@ -415,6 +421,7 @@ class Trainer:
                 loss = self.training_step(batch)
                 if self.auto_optim:
                     loss.backward()
+                    clip_grad_norm_(self.model.parameters(), 1)
                     self.optimizer.step()
 
             for param in self.model.parameters() : param.grad = None

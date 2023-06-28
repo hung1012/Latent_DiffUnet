@@ -34,7 +34,7 @@ class DiffUNet(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         
-        self.cond_model = MixVisionTransformer(img_size=384, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[32, 64, 64, 32],
+        self.cond_model = MixVisionTransformer(img_size=384, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[32, 64, 128, 32],
                  num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[3, 4, 6, 3], sr_ratios=[32, 16, 4, 1])
@@ -89,17 +89,17 @@ class PolypTrainer(Trainer):
                                                 sw_batch_size=1,
                                                 overlap=0.25)
 
-        config = OmegaConf.load(config_path)
-        self.vae_model = instantiate_from_config(config.model)
-        self.vae_model.load_state_dict(torch.load(ckpt_path, map_location=device)['state_dict'])
-        self.vae_model.to(device)
-        for param in self.vae_model.parameters():
-            param.requires_grad = False
+        # config = OmegaConf.load(config_path)
+        # self.vae_model = instantiate_from_config(config.model)
+        # self.vae_model.load_state_dict(torch.load(ckpt_path, map_location=device)['state_dict'])
+        # self.vae_model.to(device)
+        # for param in self.vae_model.parameters():
+        #     param.requires_grad = False
             
         self.model = DiffUNet()
 
         self.best_loss = 1e6
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=1e-2)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=5e-4, weight_decay=1e-2)
         self.ce = nn.CrossEntropyLoss() 
         self.mse = nn.MSELoss()
         self.scheduler = LinearWarmupCosineAnnealingLR(self.optimizer,
@@ -110,25 +110,16 @@ class PolypTrainer(Trainer):
         self.dice_loss = DiceLoss(sigmoid=True)
 
     def training_step(self, batch):
-        image, mask = self.get_input(batch)
+        image, mask, latent, name = self.get_input(batch)
 
-        x_latent = self.vae_model.encode(mask).sample()  # latent sample
-        # x_start = (x_start) * 2 - 1
-        x_t, t, noise = self.model(x=x_latent, pred_type="q_sample")
+        # x_latent = self.vae_model.encode(mask).sample()  # latent sample
+        # x_latent = (latent) * 2 - 1
+        x_t, t, noise = self.model(x=latent, pred_type="q_sample")
 
         pred_latent = self.model(x=x_t, step=t, image=image, pred_type="denoise")  # predicted latent output
+        np.save(os.path.join(train_output_dir, name + '.npy'), pred_latent)
 
-        # pred_mask = self.vae_model.decode(pred_latent)
-
-        # loss_dice = self.dice_loss(pred_mask, mask)
-        # loss_bce = self.bce(pred_mask, mask)
-
-        # pred_mask = torch.sigmoid(pred_mask)
-        # loss_mse = self.mse(pred_mask, mask)
-
-        loss = self.mse(pred_latent, x_latent)
-
-        # loss = loss_dice + loss_bce + loss_mse
+        loss = self.mse(pred_latent, latent)
 
         self.log("train_loss", loss, step=self.global_step)
 
@@ -137,37 +128,22 @@ class PolypTrainer(Trainer):
     def get_input(self, batch):
         image = batch["image"]
         mask = batch["mask"]
+        latent = batch["latent"]
+        name = batch["name"]
         mask = mask.float()
-        return image, mask
+        return image, mask, latent, name
 
     def validation_step(self, batch):
-        image, mask = self.get_input(batch)   
+        image, mask, latent, name = self.get_input(batch)   
         
         output_latent = self.window_infer(image, self.model, pred_type="ddim_sample")
 
-        gt_latent = self.vae_model.encode(mask).sample()  # latent sample
-
-        # output_mask = self.vae_model.decode(output_latent)
-
-        # output = (output > 0.5).float().cpu().numpy()
-        # target = mask.cpu().numpy()
-        # dice_score = []
-        # for i in range(output.shape[1]): #each channels, in case the number of channels is equal to 1
-        #     o = output[:, i]
-        #     t = target[:, i]
-        #     dice_score.append(dice(o, t))
-
-        # loss_dice = self.dice_loss(output_mask, mask)
-        # loss_bce = self.bce(output_mask, mask)
-
-        # output_mask = torch.sigmoid(output_mask)
-        # loss_mse = self.mse(output_mask, mask)
-
-        # loss = loss_dice + loss_bce + loss_mse
-
-        loss = self.mse(output_latent, gt_latent)
+        np.save(os.path.join(val_output_dir, name + '.npy'), output_latent)
+        
+        loss = self.mse(output_latent, latent)
 
         return loss
+
 
     def validation_end(self, mean_val_outputs):
         loss = mean_val_outputs
@@ -190,12 +166,15 @@ class PolypTrainer(Trainer):
 
 if __name__ == "__main__":
     data_dir = "/home/admin_mcn/minhtx/data/isic/image"
-    logdir = "/mnt/minhtx/logs_isic/ldm"
+    logdir = "/mnt/thaotlp/logs/logs_isic/0628"
     model_save_path = os.path.join(logdir, "model")
+    train_output_dir = "/mnt/thaotlp/output/train"
+    val_output_dir = "/mnt/thaotlp/output/val"
+
 
     env = "pytorch" # or env = "pytorch" if you only have one gpu.
 
-    max_epoch = 100
+    max_epoch = 1000
     batch_size = 8
     val_every = 10
     num_gpus = 1

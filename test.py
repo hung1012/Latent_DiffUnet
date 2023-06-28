@@ -41,7 +41,7 @@ class DiffUNet(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         
-        self.cond_model = MixVisionTransformer(img_size=384, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[32, 64, 64, 32],
+        self.cond_model = MixVisionTransformer(img_size=384, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[32, 64, 128, 32],
                  num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[3, 4, 6, 3], sr_ratios=[32, 16, 4, 1])
@@ -99,11 +99,6 @@ class ISICTester(Trainer):
                                                 overlap=0.25)
 
         config = OmegaConf.load(config_path)
-        self.vae_model = instantiate_from_config(config.model)
-        self.vae_model.load_state_dict(torch.load(ckpt_path, map_location=device)['state_dict'])
-        self.vae_model.to(device)
-        for param in self.vae_model.parameters():
-            param.requires_grad = False
             
         self.model = DiffUNet()
 
@@ -112,28 +107,22 @@ class ISICTester(Trainer):
     def get_input(self, batch):
         image = batch["image"]
         mask = batch["mask"]
+        latent = batch["latent"]
         name = batch["name"]
         mask = mask.float()
-        return image, mask, name
+        return image, mask, latent, name
 
     def validation_step(self, batch):
-        image, mask, name = self.get_input(batch)  
+        image, mask, latent, name = self.get_input(batch)  
 
-        vis_mask = mask.detach().cpu().numpy()[0]
-        vis_mask = np.transpose(vis_mask, (2,1,0)) 
+
         
         output_latent = self.window_infer(image, self.model, pred_type="ddim_sample")
+        np.save(os.path.join(test_output_dir, name + '.npy'), output_latent)
 
-        gt_latent = self.vae_model.encode(mask).sample()  # latent sample
-
-        loss = self.mse(output_latent, gt_latent).item()
+        loss = self.mse(output_latent, latent).item()
         print(loss)
 
-        output_mask = self.vae_model.decode(output_latent).detach().cpu().numpy()[0]
-        output_mask = np.transpose(output_mask, (2,1,0))
-        print(output_mask.shape)
-        cv2.imwrite(os.path.join(output_dir, name + '.png'), output_mask)
-        print("save file" + os.path.join(output_dir, name + '.png'))
 
         return [loss]
 
@@ -141,8 +130,9 @@ class ISICTester(Trainer):
 if __name__ == "__main__":
 
     data_dir = "/home/admin_mcn/minhtx/data/isic/image"
-    logdir = "/mnt/minhtx/logs_isic/ldm/model/final_model_1.7877.pt"
-    output_dir = '/mnt/minhtx/output/isic'
+    logdir = "/mnt/thaotlp/logs/logs_isic/0628/model/final_model_1.3241.pt"
+    output_dir = '/mnt/thaotlp/output'
+    test_output_dir = "/mnt/thaotlp/output/test"
 
 
     os.chdir("/home/admin_mcn/hungvq/stable_diffusion")
@@ -151,7 +141,7 @@ if __name__ == "__main__":
     ckpt_path = '/mnt/minhtx/VAE/last.ckpt'
 
     max_epoch = 300
-    batch_size = 4
+    batch_size = 1
     val_every = 10
     device = "cuda:1"
 
