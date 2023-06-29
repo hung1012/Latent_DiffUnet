@@ -305,7 +305,11 @@ class BasicUNetDe(nn.Module):
                             512),
         ])
 
+<<<<<<< HEAD:unet/basic_unet_denose.py
         self.conv_0 = TwoConv(spatial_dims, in_channels, features[0], act, norm, bias, dropout)
+=======
+        self.conv_0 = TwoConv(spatial_dims, in_channels*2, features[0], act, norm, bias, dropout)
+>>>>>>> 2d5202bb4e0b38ce8bf4b50e8560894e0271aafa:models/basic_unet_denose.py
         self.down_1 = Down(spatial_dims, fea[0], fea[1], act, norm, bias, dropout)
 
         self.down_2 = Down(spatial_dims, fea[1], fea[2], act, norm, bias, dropout)
@@ -337,6 +341,7 @@ class BasicUNetDe(nn.Module):
         temb = self.temb.dense[1](temb)
 
         if image is not None :
+<<<<<<< HEAD:unet/basic_unet_denose.py
             x = torch.cat([image, x], dim=1)
         
     
@@ -346,9 +351,19 @@ class BasicUNetDe(nn.Module):
             x0 += embeddings[0]
         
         
+=======
+            x = torch.cat([x, embeddings[0]], dim=1)
+
+        x0 = self.conv_0(x, temb)
+
+        if embeddings is not None:
+            x0 += embeddings[1]
+              
+>>>>>>> 2d5202bb4e0b38ce8bf4b50e8560894e0271aafa:models/basic_unet_denose.py
         x1 = self.down_1(x0, temb)
         if embeddings is not None:
             x1 += embeddings[1]
+
 
         x2 = self.down_2(x1, temb)
         if embeddings is not None:
