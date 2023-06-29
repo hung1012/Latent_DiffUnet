@@ -34,7 +34,7 @@ class DiffUNet(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         
-        self.cond_model = MixVisionTransformer(img_size=384, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[32, 64, 128, 32],
+        self.cond_model = MixVisionTransformer(img_size=384, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[64, 128, 256, 32],
                  num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[3, 4, 6, 3], sr_ratios=[32, 16, 4, 1])
@@ -88,13 +88,6 @@ class PolypTrainer(Trainer):
         self.window_infer = SlidingWindowInferer(roi_size=[384, 384],
                                                 sw_batch_size=1,
                                                 overlap=0.25)
-
-        # config = OmegaConf.load(config_path)
-        # self.vae_model = instantiate_from_config(config.model)
-        # self.vae_model.load_state_dict(torch.load(ckpt_path, map_location=device)['state_dict'])
-        # self.vae_model.to(device)
-        # for param in self.vae_model.parameters():
-        #     param.requires_grad = False
             
         self.model = DiffUNet()
 
@@ -112,12 +105,9 @@ class PolypTrainer(Trainer):
     def training_step(self, batch):
         image, mask, latent, name = self.get_input(batch)
 
-        # x_latent = self.vae_model.encode(mask).sample()  # latent sample
-        # x_latent = (latent) * 2 - 1
         x_t, t, noise = self.model(x=latent, pred_type="q_sample")
 
-        pred_latent = self.model(x=x_t, step=t, image=image, pred_type="denoise")  # predicted latent output
-        np.save(os.path.join(train_output_dir, name + '.npy'), pred_latent)
+        pred_latent = self.model(x=x_t, step=t, image=image, pred_type="denoise") 
 
         loss = self.mse(pred_latent, latent)
 
@@ -137,8 +127,6 @@ class PolypTrainer(Trainer):
         image, mask, latent, name = self.get_input(batch)   
         
         output_latent = self.window_infer(image, self.model, pred_type="ddim_sample")
-
-        np.save(os.path.join(val_output_dir, name + '.npy'), output_latent)
         
         loss = self.mse(output_latent, latent)
 
@@ -166,28 +154,19 @@ class PolypTrainer(Trainer):
 
 if __name__ == "__main__":
     data_dir = "/home/admin_mcn/minhtx/data/isic/image"
-    logdir = "/mnt/thaotlp/logs/logs_isic/0628"
+    logdir = "/mnt/thaotlp/logs/logs_isic/0629"
     model_save_path = os.path.join(logdir, "model")
-    train_output_dir = "/mnt/thaotlp/output/train"
-    val_output_dir = "/mnt/thaotlp/output/val"
-
 
     env = "pytorch" # or env = "pytorch" if you only have one gpu.
 
-    max_epoch = 1000
+    max_epoch = 100
     batch_size = 8
     val_every = 10
     num_gpus = 1
-    device = "cuda:1"
+    device = "cuda:0"
 
     number_modality = 3
     number_targets = 32
-
-
-    os.chdir("/home/admin_mcn/hungvq/stable_diffusion")
-
-    config_path = '/mnt/minhtx/VAE/2023-06-07T11-32-09-project.yaml'
-    ckpt_path = '/mnt/minhtx/VAE/last.ckpt'
     
 
     train_ds, val_ds,test_ds = get_loader_isic(data_dir=data_dir, batch_size=batch_size, fold=0)

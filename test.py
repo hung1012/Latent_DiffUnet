@@ -41,7 +41,7 @@ class DiffUNet(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         
-        self.cond_model = MixVisionTransformer(img_size=384, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[32, 64, 128, 32],
+        self.cond_model = MixVisionTransformer(img_size=384, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[64, 128, 256, 32],
                  num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[3, 4, 6, 3], sr_ratios=[32, 16, 4, 1])
@@ -97,8 +97,6 @@ class ISICTester(Trainer):
         self.window_infer = SlidingWindowInferer(roi_size=[384, 384],
                                                 sw_batch_size=1,
                                                 overlap=0.25)
-
-        config = OmegaConf.load(config_path)
             
         self.model = DiffUNet()
 
@@ -130,20 +128,14 @@ class ISICTester(Trainer):
 if __name__ == "__main__":
 
     data_dir = "/home/admin_mcn/minhtx/data/isic/image"
-    logdir = "/mnt/thaotlp/logs/logs_isic/0628/model/final_model_1.3241.pt"
+    ckpt_path = "/mnt/thaotlp/logs/logs_isic/0629/model/final_model_1.3165.pt"
     output_dir = '/mnt/thaotlp/output'
     test_output_dir = "/mnt/thaotlp/output/test"
-
-
-    os.chdir("/home/admin_mcn/hungvq/stable_diffusion")
-
-    config_path = '/mnt/minhtx/VAE/2023-06-07T11-32-09-project.yaml'
-    ckpt_path = '/mnt/minhtx/VAE/last.ckpt'
 
     max_epoch = 300
     batch_size = 1
     val_every = 10
-    device = "cuda:1"
+    device = "cuda:0"
 
     number_modality = 3
     number_targets = 32 
@@ -160,7 +152,7 @@ if __name__ == "__main__":
                         training_script=__file__)
 
     
-    tester.load_state_dict(logdir)
+    tester.load_state_dict(ckpt_path)
     v_mean = tester.validation_single_gpu(val_dataset=test_ds)
 
     print(f"v_mean is {v_mean}")

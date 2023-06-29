@@ -35,10 +35,10 @@ LATENT_OUTPUT_DIR = "/mnt/thaotlp/output/test"
 
 for filename in os.listdir(LATENT_OUTPUT_DIR):
     fileidx = filename.split(".")[0]
-    latent = torch.Tensor(np.load(os.path.join(LATENT_GT_DIR, filename)))
+    latent = torch.Tensor(np.load(os.path.join(LATENT_OUTPUT_DIR, filename)))
 
     # reconstruct mask output from latent output
     output = model.decode(latent)
     image = to_pil_image(torch.clamp(output[0].squeeze(0),min=0,max=1), mode='L')
-    image.save(os.path.join(LATENT_DECODE_DIR, fileidx + ".png"))
+    image.save(os.path.join(OUTPUT_DIR, fileidx + ".png"))
 
