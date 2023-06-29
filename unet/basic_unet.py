@@ -381,7 +381,7 @@ class BasicUNetEncoder(nn.Module):
         if dimensions is not None:
             spatial_dims = dimensions
 
-        fea = ensure_tuple_rep(features, 9)
+        fea = ensure_tuple_rep(features, 6)
         print(f"BasicUNet features: {fea}.")
 
         self.conv_0 = TwoConv(spatial_dims, in_channels, features[0], act, norm, bias, dropout)
@@ -389,10 +389,6 @@ class BasicUNetEncoder(nn.Module):
         self.down_2 = Down(spatial_dims, fea[1], fea[2], act, norm, bias, dropout)
         self.down_3 = Down(spatial_dims, fea[2], fea[3], act, norm, bias, dropout)
         self.down_4 = Down(spatial_dims, fea[3], fea[4], act, norm, bias, dropout)
-        self.conv_embeded = Down(spatial_dims, fea[4], fea[4], act, norm, bias, dropout)
-        self.down_5 = TwoConv(spatial_dims, fea[4], fea[5], act, norm, bias, dropout)
-        self.down_6 = Down(spatial_dims, fea[5], fea[6], act, norm, bias, dropout)
-        self.down_7 = Down(spatial_dims, fea[6], fea[7], act, norm, bias, dropout)
 
     def forward(self, x: torch.Tensor):
         """
@@ -413,11 +409,6 @@ class BasicUNetEncoder(nn.Module):
         x2 = self.down_2(x1)
         x3 = self.down_3(x2)
         x4 = self.down_4(x3)
-        x_embeded = self.conv_embeded(x4)
-        x5 = self.down_5(x_embeded)
-        x6 = self.down_6(x5)
-        x7 = self.down_7(x6)
 
-        return [x_embeded, x5, x6, x7]
+        return [x0, x1, x2, x3, x4]
         
-

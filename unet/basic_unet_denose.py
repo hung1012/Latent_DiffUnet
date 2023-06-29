@@ -8,15 +8,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# from ldm.util import instantiate_from_config
-# from omegaconf import OmegaConf
 
 from typing import Optional, Sequence, Union
 import math 
 import torch
 import torch.nn as nn
 
-from monai import transforms
 from monai.networks.blocks import Convolution, UpSample
 from monai.networks.layers.factories import Conv, Pool
 from monai.utils import deprecated_arg, ensure_tuple_rep
@@ -296,7 +293,7 @@ class BasicUNetDe(nn.Module):
         if dimensions is not None:
             spatial_dims = dimensions
 
-        fea = ensure_tuple_rep(features, 4)
+        fea = ensure_tuple_rep(features, 6)
         print(f"BasicUNet features: {fea}.")
         
         # timestep embedding
@@ -308,21 +305,19 @@ class BasicUNetDe(nn.Module):
                             512),
         ])
 
-        self.conv_0 = TwoConv(spatial_dims, in_channels*5, features[0], act, norm, bias, dropout)
+        self.conv_0 = TwoConv(spatial_dims, in_channels, features[0], act, norm, bias, dropout)
         self.down_1 = Down(spatial_dims, fea[0], fea[1], act, norm, bias, dropout)
+
         self.down_2 = Down(spatial_dims, fea[1], fea[2], act, norm, bias, dropout)
+        self.down_3 = Down(spatial_dims, fea[2], fea[3], act, norm, bias, dropout)
+        self.down_4 = Down(spatial_dims, fea[3], fea[4], act, norm, bias, dropout)
 
+        self.upcat_4 = UpCat(spatial_dims, fea[4], fea[3], fea[3], act, norm, bias, dropout, upsample)
+        self.upcat_3 = UpCat(spatial_dims, fea[3], fea[2], fea[2], act, norm, bias, dropout, upsample)
         self.upcat_2 = UpCat(spatial_dims, fea[2], fea[1], fea[1], act, norm, bias, dropout, upsample)
-        self.upcat_1 = UpCat(spatial_dims, fea[1], fea[0], fea[3], act, norm, bias, dropout, upsample, halves=False)
+        self.upcat_1 = UpCat(spatial_dims, fea[1], fea[0], fea[5], act, norm, bias, dropout, upsample, halves=False)
 
-        self.final_conv = Conv["conv", spatial_dims](fea[3], out_channels, kernel_size=1)
-        # config_path = '/home/admin_mcn/hungvq/MedSegDiff/logs/2023-05-02T17-25-50_seg_diff_autoencoder/configs/2023-05-02T17-25-50-project.yaml'
-        # ckpt_path = '/home/admin_mcn/hungvq/MedSegDiff/logs/2023-05-02T17-25-50_seg_diff_autoencoder/checkpoints/last.ckpt'
-        # config = OmegaConf.load(config_path)
-        # self.vae_model = instantiate_from_config(config.model)
-        # ckpt = torch.load(ckpt_path, map_location='cpu')
-        # self.vae_model.load_state_dict(ckpt['state_dict'])
-        # self.vae_model.eval()
+        self.final_conv = Conv["conv", spatial_dims](fea[5], out_channels, kernel_size=1)
 
     def forward(self, x: torch.Tensor, t, embeddings=None, image=None):
         """
@@ -341,34 +336,38 @@ class BasicUNetDe(nn.Module):
         temb = nonlinearity(temb)
         temb = self.temb.dense[1](temb)
 
-        # image = None
-        # for i,e in enumerate(embeddings):
-        #     print(f'Embedding {i}: {e.shape}')
-        # print(f"X shape: {x.shape}")
-        # image = self.vae_model.encode(image).sample()[0]
         if image is not None :
-            x = torch.cat([x, embeddings[0]], dim=1)
+            x = torch.cat([image, x], dim=1)
+        
+    
         ###### ERROR ######
         x0 = self.conv_0(x, temb)
-
-        ##############
         if embeddings is not None:
-            x0 += embeddings[1]
+            x0 += embeddings[0]
         
         
         x1 = self.down_1(x0, temb)
         if embeddings is not None:
-            x1 += embeddings[2]
+            x1 += embeddings[1]
 
         x2 = self.down_2(x1, temb)
         if embeddings is not None:
-            x2 += embeddings[3]
+            x2 += embeddings[2]
 
-        u2 = self.upcat_2(x2, x1, temb)
+        x3 = self.down_3(x2, temb)
+        if embeddings is not None:
+            x3 += embeddings[3]
+
+        x4 = self.down_4(x3, temb)
+        if embeddings is not None:
+            x4 += embeddings[4]
+
+        u4 = self.upcat_4(x4, x3, temb)
+        u3 = self.upcat_3(u4, x2, temb)
+        u2 = self.upcat_2(u3, x1, temb)
         u1 = self.upcat_1(u2, x0, temb)
 
         logits = self.final_conv(u1)
         return logits
-
 
 
