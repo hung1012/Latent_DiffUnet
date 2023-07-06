@@ -70,7 +70,7 @@ def get_loader_isic(data_dir, mask_dir, batch_size=1, fold=0, num_workers=8):
     train_files = all_paths[:train_size]
     train_mask = all_paths_mask[:train_size]
     val_files = all_paths[train_size:train_size + val_size]
-    val_mask = all_paths_mask[:train_size:train_size + val_size]
+    val_mask = all_paths_mask[train_size:train_size + val_size]
     test_files = all_paths[train_size+val_size:]
     test_mask = all_paths_mask[train_size+val_size:]
     print(f"train is {len(train_files)}, val is {len(val_files)}, test is {len(test_files)}")

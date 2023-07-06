@@ -119,7 +119,7 @@ class ISICTester(Trainer):
 
         loss = self.mse(output, mask)
 
-        np.save(os.path.join(output_dir, name + '.npy'), output)
+        np.save(os.path.join(output_dir, name + '.npy'), output.detach().cpu())
         print("save file" + os.path.join(output_dir, name + '.npy'))
 
         return output, loss
@@ -127,8 +127,11 @@ class ISICTester(Trainer):
 if __name__ == "__main__":
 
     data_dir = "/home/admin_mcn/thaotlp/data/ISIC/image"
-    logdir = "/home/admin_mcn/hungvq/DiffUnet/logs_new_vae/model/best_model_1.3230.pt"
-    output_dir = '/home/admin_mcn/hungvq/Latent_DiffUnet/output_new_vae'
+    mask_dir = "/home/admin_mcn/thaotlp/data/ISIC/mask"
+    logdir = "/home/admin_mcn/hungvq/logs/decode_with_combined_loss/model/best_model_2.5485.pt"
+    output_dir = '/home/admin_mcn/hungvq/Latent_DiffUnet/output_decode_combined_loss'
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     max_epoch = 300
     batch_size = 4
@@ -138,7 +141,7 @@ if __name__ == "__main__":
     number_modality = 3
     number_targets = 32 
 
-    train_ds, val_ds, test_ds = get_loader_isic(data_dir=data_dir, batch_size=batch_size, fold=0)
+    train_ds, val_ds, test_ds = get_loader_isic(data_dir=data_dir, mask_dir=mask_dir, batch_size=batch_size, fold=0)
     
     tester = ISICTester(env_type="pytorch",
                         max_epochs=max_epoch,

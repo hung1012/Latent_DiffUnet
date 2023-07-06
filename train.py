@@ -78,8 +78,8 @@ class ISICTrainer(Trainer):
         self.model = DiffUNet()
 
         print('Start creating and loading vae model ...')
-        config_path = '/home/admin_mcn/hungvq/stable_diffusion/logs/2023-06-06T13-14-23_seg_diff_autoencoder/configs/2023-06-06T22-23-53-project.yaml'
-        ckpt_path = '/home/admin_mcn/hungvq/stable_diffusion/logs/2023-06-06T13-14-23_seg_diff_autoencoder/checkpoints/last.ckpt'
+        config_path = '/home/admin_mcn/hungvq/stable_diffusion/logs/2023-06-07T11-32-09_seg_diff_autoencoder/configs/2023-06-07T11-32-09-project.yaml'
+        ckpt_path = '/home/admin_mcn/hungvq/stable_diffusion/logs/2023-06-07T11-32-09_seg_diff_autoencoder/checkpoints/last.ckpt'
         config = OmegaConf.load(config_path)
         vae_model = instantiate_from_config(config.model)
         vae_model.load_state_dict(torch.load(ckpt_path, map_location='cpu')['state_dict'])
@@ -88,7 +88,7 @@ class ISICTrainer(Trainer):
             param.requires_grad = False
 
         self.best_mean_dice = 1e4
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=1e-2)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=1e-3)
         self.ce = nn.CrossEntropyLoss() 
         self.mse = nn.MSELoss()
         self.scheduler = LinearWarmupCosineAnnealingLR(self.optimizer,
@@ -109,17 +109,12 @@ class ISICTrainer(Trainer):
         pred_xstart = self.model(x=x_t, step=t, image=image, pred_type="denoise")
 
         decode_pred = self.vae.decode(pred_xstart)
-        # decode_pred = (torch.clamp(decode_pred,min=0,max=1)>0.99).float()
-
-        # print("\nDecode ", decode_pred.shape)
-        # print(mask.shape)
+        decode_pred = torch.sigmoid(decode_pred)
         loss_dice = self.dice_loss(decode_pred, mask)
         loss_bce = self.bce(decode_pred, mask)
+        loss_mse = self.mse(pred_xstart, latent_mask)
 
-        loss_mse = self.mse(decode_pred, mask)
-
-        loss = loss_dice + loss_bce + loss_mse
-        # loss = loss_mse
+        loss = loss_dice + loss_mse + loss_bce
 
         self.log("train_loss", loss, step=self.global_step)
 
@@ -140,19 +135,14 @@ class ISICTrainer(Trainer):
 
         output = self.window_infer(image, self.model, pred_type="ddim_sample")
         decode_pred = self.vae.decode(output)
-        # output = torch.sigmoid(output)
-
-        # output = (output > 0.5).float().cpu().numpy()
-        # target = mask.cpu().numpy()
-
-        # output = (output > 0.5).float()
+        decode_pred = torch.sigmoid(decode_pred)
+        decode_pred = (decode_pred>0.5).float()
 
         loss_dice = self.dice_loss(decode_pred, mask)
         loss_bce = self.bce(decode_pred, mask)
+        loss_mse = self.mse(output, latent_mask)
 
-        loss_mse = self.mse(decode_pred, mask)
-
-        loss = loss_dice + loss_bce + loss_mse
+        loss = loss_dice + loss_mse + loss_bce
         
         return loss
 
@@ -179,16 +169,16 @@ if __name__ == "__main__":
 
     data_dir = "/home/admin_mcn/thaotlp/data/ISIC/image"
     mask_dir = "/home/admin_mcn/thaotlp/data/ISIC/mask"
-    logdir = "/home/admin_mcn/hungvq/DiffUnet/logs_new_vae"
+    logdir = "/home/admin_mcn/hungvq/logs/latent_12_decode"
     model_save_path = os.path.join(logdir, "model")
 
     env = "pytorch" # or env = "pytorch" if you only have one gpu.
 
-    max_epoch = 10000
+    max_epoch = 300
     batch_size = 1
     val_every = 10
     num_gpus = 1
-    device = "cuda:0"
+    device = "cuda:1"
 
     number_modality = 3
     number_targets = 32
